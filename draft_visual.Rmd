@@ -1,0 +1,160 @@
+---
+title: "visual_draft"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+load(file = "filename.RData")
+
+# build vectors to record the days to detection 
+# and detected clusters
+# load results of Frequentist scan
+
+results = Kull_final_result
+
+# didn't not detect the outbreak in the following zones
+# replace those results with no detection
+undetected_points = c(437,720,1002)
+
+for (i in 1:length(undetected_points)) {
+  Kull_final_result[[undetected_points[i]]] = list(undetected_points[i], 1, 30, 1)
+  
+}
+
+reg_num = length(results)
+Freq_days_to_detection = numeric(reg_num)
+detected_cluster = numeric(reg_num)
+
+
+for (i in 1:reg_num) {
+
+  detected_cluster[i] = results[[i]][[2]]
+  # subtract the first 300 null days
+  Freq_days_to_detection[i] = results[[i]][[3]] 
+}
+
+
+
+
+# percentage of detection by day i
+freq_pct_detection_by_day_i = numeric(30)
+for (i in 1:30) freq_pct_detection_by_day_i[i] =  sum(Freq_days_to_detection <= i)/reg_num
+
+
+# summarize frequentist scan detection time
+summary(Freq_days_to_detection)
+
+# plot the density of days to detection
+days = 1:30
+plot(days,freq_pct_detection_by_day_i,main = "Percentage of Outbreaks Detected by Frequentist scan", ylab = "Percentage", xlab = "Days")
+
+# initiate the accuracy, sensitivity and PPV
+Freq_accuracy = numeric(reg_num)
+Freq_sensitivity =  numeric(reg_num)
+Freq_ppv = numeric(reg_num)
+
+for (i in 1:reg_num) {
+  length_in = length(intersect(zones[[i]],zones[[detected_cluster[i]]]))
+  length_out = length(intersect(setdiff(c(1:reg_num), zones[[i]]),setdiff(c(1:reg_num), zones[[detected_cluster[[i]]]])))
+                     
+  Freq_sensitivity[i] = length_in/length(zones[[i]])
+  Freq_ppv[i] = length_in/length(zones[[detected_cluster[[i]]]])
+  Freq_accuracy[i] = (length_in + length_out)/reg_num
+}
+
+plot(Freq_sensitivity, main = "Sensitivity plot for Frequentist Scan", ylab = "Sensitivity", xlab = "Injected Location")
+plot(Freq_ppv, main ="Positive Predictive Value Plot for Frequentist scan (PPV)", xlab = "Injected Location", ylab = "PPV Percentage")
+plot(Freq_accuracy, main = "Accuracy plot for Frequentist scan", ylab = "Accuracy Percentage", xlab = "Injected Location")
+```
+
+
+```{r}
+# load results
+results = Bay_final_results
+
+reg_num = length(results)
+Bay_days_to_detection = numeric(reg_num)
+detected_cluster = numeric(reg_num)
+
+
+for (i in 1:reg_num) {
+
+  detected_cluster[i] = results[[i]][[2]]
+  # subtract the first 300 null days
+  Bay_days_to_detection[i] = results[[i]][[3]] - 300
+}
+
+
+
+# percentage of detection by day i
+pct_detection_by_day_i = numeric(30)
+for (i in 1:30) pct_detection_by_day_i[i] =  sum(Bay_days_to_detection <= i)/reg_num
+
+# plot the density of days to detection
+days = 1:30
+plot(days,pct_detection_by_day_i,main = "Percentage of Outbreaks Detected by Bayesian scan", ylab = "Percentage", xlab = "Days")
+
+# initiate the accuracy, sensitivity and PPV
+Bay_accuracy = numeric(reg_num)
+Bay_sensitivity =  numeric(reg_num)
+Bay_ppv = numeric(reg_num)
+
+for (i in 1:reg_num) {
+  length_in = length(intersect(zones[[i]],zones[[detected_cluster[i]]]))
+  length_out = length(intersect(setdiff(c(1:reg_num), zones[[i]]),setdiff(c(1:reg_num), zones[[detected_cluster[[i]]]])))
+  
+  Bay_sensitivity[i] = length_in/length(zones[[i]])
+  Bay_ppv[i] = length_in/length(zones[[detected_cluster[[i]]]])
+  Bay_accuracy[i] = (length_in + length_out)/reg_num
+}
+
+plot(Bay_sensitivity, main = "Sensitivity plot for Bayesian Scan", ylab = "Sensitivity", xlab = "Injected Location")
+plot(Bay_ppv, main ="Positive Predictive Value Plot for Bayesian scan (PPV)", xlab = "Injected Location", ylab = "PPV")
+plot(Bay_accuracy, main = "Accuracy plot for Bayescian scan", ylab = "Accuracy Percentage", xlab = "Injected Location")
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# build a data.frame to contain results of two methods
+
+method = as.factor(c(rep("Frequentist",reg_num), rep("Bayesian",reg_num)))
+
+# combine the method type, days to detection, sensitivity, ppv, accuracy, injection sizes 
+# for both methods
+days_combined = c(Freq_days_to_detection,Bay_days_to_detection)
+sensitivity_combined = c(Freq_sensitivity,Bay_sensitivity)
+ppv_combined = c(Freq_ppv,Bay_ppv)
+accuracy_combined = c(Freq_accuracy,Bay_accuracy)
+injection_size = rep(foreach(i = 1:reg_num, .combine = "c") %do% length(zones[[i]]), 2)
+
+# save in one data frame
+visual_data = data.frame(method,days_combined,sensitivity_combined,ppv_combined,accuracy_combined,injection_size)
+
+# create a boxplot for the detection days
+ggplot(visual_data,aes(x=method, y= days_combined)) +
+    geom_boxplot(fill = "cornflowerblue", color = "black", notch = TRUE) +
+    geom_point(position = "jitter", color = "blue", alpha = 0.5) +
+    geom_rug(sides = "1", color = "black")
+
+boxplot(days_combined ~ method, 
+        data = visual_data, 
+        notch = TRUE, 
+        col = (c("gold","darkgreen")), 
+        main = "Days to Detection", 
+        ylab = "Days",
+        xlab = "Method")
+    
+# create density plots for both methods
+ggplot(data = visual_data, aes(x = sensitivity_combined, fill = method)) +
+  geom_density(alpha = 0.3)
+
+```
+
